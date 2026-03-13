@@ -1,94 +1,65 @@
 """
-Module de transcription spécialisé pour le bambara
-Version simplifiée et robuste qui évite les conflits de tokenizers
+Module de transcription pour le bambara - Approche hybride
+Utilise Groq pour la transcription brute + Gemini pour la correction bambara
 """
 import streamlit as st
-import torch
-import os
-import tempfile
-import subprocess
-import numpy as np
+from src.groq_client import GroqTranscriber
 
 class BambaraTranscriber:
-    """Transcription spécialisée pour la langue bambara - Version simplifiée"""
+    """Transcription bambara par approche hybride (Whisper + Gemini)"""
     
-    # Modèles disponibles
-    MODELS = {
-        "small": {
-            "name": "kalilouisangare/whisper-small-bambara-v2-kis",
-            "wer": "43.70%",
-            "license": "CC BY 4.0",
-            "description": "Modèle open source recommandé"
-        },
-        "v1": {
-            "name": "MALIBA-AI/bambara-asr-v1",
-            "wer": "61.74%",
-            "license": "Apache 2.0",
-            "description": "Version commerciale"
-        }
-    }
-    
-    def __init__(self, model_key="small"):
-        """
-        Initialise le transcriber bambara
-        """
-        self.model_key = model_key
-        self.model_name = self.MODELS[model_key]["name"]
-        self.pipe = None
-        
-    def load_model(self):
-        """Charge le modèle avec gestion d'erreurs améliorée"""
-        if self.pipe is None:
-            with st.spinner(f"Chargement du modèle bambara..."):
-                try:
-                    # Import à l'intérieur pour éviter les conflits au chargement
-                    from transformers import pipeline
-                    
-                    # Configuration du device
-                    device = 0 if torch.cuda.is_available() else -1
-                    
-                    # Pipeline simplifié sans paramètres complexes
-                    self.pipe = pipeline(
-                        task="automatic-speech-recognition",
-                        model=self.model_name,
-                        device=device
-                    )
-                    
-                except Exception as e:
-                    st.error(f"Erreur de chargement détaillée: {str(e)}")
-                    
-                    # Solution de secours: retour à un modèle plus simple
-                    try:
-                        st.warning("Tentative avec modèle de secours...")
-                        self.pipe = pipeline(
-                            task="automatic-speech-recognition",
-                            model="openai/whisper-small",
-                            device=device
-                        )
-                    except:
-                        raise Exception("Impossible de charger un modèle de transcription")
-                        
-        return self.pipe
+    def __init__(self, groq_api_key, gemini_api_key=None):
+        self.groq = GroqTranscriber(groq_api_key)
+        self.gemini_available = gemini_api_key is not None
+        if self.gemini_available:
+            from src.gemini_formatter import GeminiFormatter
+            self.gemini = GeminiFormatter(gemini_api_key)
     
     def transcribe(self, audio_path):
-        """Transcrit un fichier audio en bambara"""
+        """
+        Transcrit un fichier audio avec correction bambara
+        """
         try:
-            # Vérifier que le fichier existe
-            if not os.path.exists(audio_path):
-                raise Exception(f"Fichier audio introuvable: {audio_path}")
+            # Étape 1: Transcription brute avec Groq (Whisper)
+            # Whisper détecte automatiquement les langues mélangées
+            st.info("🎤 Transcription audio en cours...")
+            raw_text = self.groq.transcribe(audio_path)
             
-            # Charger le modèle
-            pipe = self.load_model()
-            
-            # Transcription simple
-            result = pipe(audio_path)
-            
-            return result["text"]
-            
+            # Étape 2: Si Gemini est disponible, corriger pour le bambara
+            if self.gemini_available:
+                st.info("🔄 Amélioration de la transcription bambara...")
+                
+                # Prompt spécial pour corriger le bambara
+                prompt = f"""
+                Cette transcription contient du bambara et du français.
+                Corrige-la en suivant ces règles:
+                1. Garde TOUS les mots dans leur langue originale (ne traduis pas)
+                2. Corrige uniquement les fautes d'orthographe évidentes
+                3. Remets les tons bambara si nécessaire (ɛ, ɔ, ɲ, ŋ)
+                4. Garde la structure naturelle des phrases
+                5. Si un mot bambara est mal transcrit, essaie de le deviner par le contexte
+                
+                Transcription originale:
+                {raw_text}
+                
+                Transcription corrigée:
+                """
+                
+                corrected_text = self.gemini.model.generate_content(prompt).text
+                return corrected_text
+            else:
+                return raw_text
+                
         except Exception as e:
             raise Exception(f"Erreur de transcription bambara: {str(e)}")
     
     @staticmethod
     def get_model_info():
-        """Retourne les infos sur les modèles disponibles"""
-        return BambaraTranscriber.MODELS
+        return {
+            "hybrid": {
+                "name": "Whisper + Gemini",
+                "wer": "Variable (corrigé par IA)",
+                "license": "Commercial",
+                "description": "Approche hybride fiable pour production"
+            }
+        }
