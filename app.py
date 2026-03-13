@@ -3,7 +3,6 @@ import time
 import os
 import subprocess
 import sys
-import pkg_resources
 
 # --- CONFIGURATION DE LA PAGE (DOIT ÊTRE LA PREMIÈRE COMMANDE STREAMLIT) ---
 st.set_page_config(
@@ -13,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- DÉBOGAGE DES DÉPENDANCES ---
+# --- DÉBOGAGE SIMPLE SANS PKG_RESOURCES ---
 st.write("## 🔍 DÉBOGAGE - Vérification des installations")
 st.write("---")
 
@@ -22,7 +21,6 @@ try:
     result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
     if result.returncode == 0:
         st.success("✅ FFmpeg est installé")
-        # Afficher la version
         version_line = result.stdout.split('\n')[0]
         st.code(version_line)
     else:
@@ -33,83 +31,12 @@ except Exception as e:
     st.error(f"❌ Erreur FFmpeg: {str(e)}")
 
 st.write("---")
-
-# Vérifier les packages Python
-packages = [
-    "streamlit",
-    "groq", 
-    "yt-dlp",
-    "pydub",
-    "ffmpeg-python",
-    "validators",
-    "google-generativeai"
-]
-
-st.write("### 📦 Packages Python installés :")
-for package in packages:
-    try:
-        dist = pkg_resources.get_distribution(package)
-        st.success(f"✅ {package} {dist.version}")
-    except pkg_resources.DistributionNotFound:
-        st.error(f"❌ {package} NON INSTALLÉ")
-    except Exception as e:
-        st.error(f"❌ {package}: {str(e)}")
-
-st.write("---")
-st.write("### 🔧 Test d'import des modules :")
-
-# Test d'import de chaque module
-try:
-    import groq
-    st.success("✅ groq importé avec succès")
-    st.write(f"   - Path: {groq.__file__}")
-except Exception as e:
-    st.error(f"❌ groq: {str(e)}")
-
-try:
-    import yt_dlp
-    st.success("✅ yt_dlp importé avec succès")
-    st.write(f"   - Path: {yt_dlp.__file__}")
-except Exception as e:
-    st.error(f"❌ yt_dlp: {str(e)}")
-
-try:
-    from pydub import AudioSegment
-    st.success("✅ pydub.AudioSegment importé avec succès")
-    st.write(f"   - Path: {AudioSegment.__module__}")
-except Exception as e:
-    st.error(f"❌ pydub: {str(e)}")
-
-try:
-    import ffmpeg
-    st.success("✅ ffmpeg-python importé avec succès")
-    st.write(f"   - Path: {ffmpeg.__file__}")
-except Exception as e:
-    st.error(f"❌ ffmpeg-python: {str(e)}")
-
-try:
-    import validators
-    st.success("✅ validators importé avec succès")
-    st.write(f"   - Path: {validators.__file__}")
-except Exception as e:
-    st.error(f"❌ validators: {str(e)}")
-
-try:
-    import google.generativeai as genai
-    st.success("✅ google.generativeai importé avec succès")
-    st.write(f"   - Path: {genai.__file__}")
-except Exception as e:
-    st.error(f"❌ google.generativeai: {str(e)}")
-
-st.write("---")
-st.warning("⏸️ Arrêt temporaire pour débogage - Retirez ce code une fois les problèmes résolus")
-st.stop()  # Arrête l'exécution ici pour voir les résultats de débogage
+st.warning("⏸️ Arrêt temporaire pour débogage - Retirez cette section une fois que FFmpeg fonctionne")
+st.stop()
 
 # ========== FIN DU DÉBOGAGE ==========
-# Le code ci-dessous ne sera pas exécuté tant que le débogage est actif
-# =====================================
 
-# Importer nos modules personnalisés (après débogage)
+# Importer nos modules personnalisés
 from src.audio_processor import AudioProcessor
 from src.groq_client import GroqTranscriber
 from src.subscription import SubscriptionManager
@@ -121,7 +48,7 @@ DEV_MODE = True
 
 # --- INITIALISATION ---
 
-# Vérification FFmpeg (déjà fait dans le débogage)
+# Vérification FFmpeg
 if not AudioProcessor.check_ffmpeg():
     st.error("""
     ❌ **FFmpeg n'est pas installé sur le système.**  
@@ -200,12 +127,6 @@ st.markdown("""
     .stButton>button:hover {
         transform: translateY(-2px);
         box-shadow: 0 10px 15px -3px rgba(20, 184, 166, 0.3);
-    }
-    .status-box {
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        font-weight: 500;
     }
     </style>
 """, unsafe_allow_html=True)
