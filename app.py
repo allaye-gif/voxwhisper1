@@ -7,6 +7,10 @@ from src.audio_processor import AudioProcessor
 from src.groq_client import GroqTranscriber
 from src.subscription import SubscriptionManager
 
+# --- MODE DÉVELOPPEMENT ---
+# Mettre à False en production pour activer l'abonnement
+DEV_MODE = True
+
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="VoxWhisper Mali",
@@ -108,7 +112,13 @@ with col_flag:
 st.divider()
 
 # --- GESTION DE L'ABONNEMENT (Sidebar) ---
-SubscriptionManager.show_subscription_ui()
+# En mode développement, on n'affiche pas l'UI d'abonnement
+if not DEV_MODE:
+    SubscriptionManager.show_subscription_ui()
+else:
+    with st.sidebar:
+        st.success("🔧 **MODE DÉVELOPPEMENT**")
+        st.info("L'abonnement est désactivé pour les tests.")
 
 # --- ZONE DE SAISIE PRINCIPALE (UX Premium) ---
 source_type = st.radio(
@@ -143,10 +153,14 @@ if 'history' not in st.session_state:
 
 # --- LOGIQUE PRINCIPALE DE TRANSCRIPTION ---
 if launch_button and input_source:
-    # Vérification de l'abonnement
-    if not SubscriptionManager.is_active():
-        st.warning("🔒 **Abonnement requis.** Veuillez vous abonner pour utiliser le service.")
-        st.stop()
+    # Vérification de l'abonnement (UNIQUEMENT si pas en mode développement)
+    if not DEV_MODE:
+        if not SubscriptionManager.is_active():
+            st.warning("🔒 **Abonnement requis.** Veuillez vous abonner pour utiliser le service.")
+            st.stop()
+    else:
+        # Message discret en mode développement
+        st.info("⚙️ Mode développement : transcription gratuite activée")
 
     # Initialisation des éléments UI de progression
     progress_bar = st.progress(0, text="Initialisation...")
