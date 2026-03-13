@@ -11,7 +11,8 @@ class GeminiFormatter:
     def __init__(self, api_key):
         """Initialise le client Gemini"""
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        # Utiliser le bon nom de modèle (sans flash car c'est l'ancien nom)
+        self.model = genai.GenerativeModel('gemini-1.5-pro')  # ou 'gemini-pro'
 
     def format_transcription(self, raw_text, style="propre"):
         """
@@ -24,51 +25,44 @@ class GeminiFormatter:
         - "bambara": Formatage spécial pour le bambara
         """
         prompts = {
-            "propre": f"""
-            Nettoie cette transcription audio:
-            - Corrige la ponctuation (points, virgules, majuscules)
-            - Corrige les fautes d'orthographe évidentes
-            - Garde le sens exact, ne change pas les mots
-            - Supprime les répétitions inutiles (euh, hum, etc.)
+            "propre": f"""Nettoie cette transcription audio en corrigeant uniquement:
+- La ponctuation (points, virgules, majuscules)
+- Les fautes d'orthographe évidentes
+- Supprime les répétitions inutiles (euh, hum, etc.)
+Ne change PAS le sens et ne réécris PAS les phrases.
+
+Texte brut: {raw_text}
+
+Texte nettoyé:""",
             
-            Texte brut: {raw_text}
+            "structure": f"""Structure cette transcription audio:
+- Divise en paragraphes logiques
+- Ajoute des titres de sections si pertinent
+- Mets en forme les dialogues (si plusieurs personnes)
+- Corrige la ponctuation
+
+Texte brut: {raw_text}
+
+Texte structuré:""",
             
-            Texte nettoyé:
-            """,
+            "resume": f"""Résume cette transcription en 3-5 phrases clés:
+- Garde l'essentiel du message
+- Format concis
+
+Texte: {raw_text}
+
+Résumé:""",
             
-            "structure": f"""
-            Structure cette transcription audio:
-            - Divise en paragraphes logiques
-            - Ajoute des titres de sections si pertinent
-            - Mets en forme les dialogues (si plusieurs personnes)
-            - Corrige la ponctuation
-            
-            Texte brut: {raw_text}
-            
-            Texte structuré:
-            """,
-            
-            "resume": f"""
-            Résume cette transcription en 3-5 phrases clés:
-            - Garde l'essentiel du message
-            - Format concis et professionnel
-            
-            Texte: {raw_text}
-            
-            Résumé:
-            """,
-            
-            "bambara": f"""
-            Nettoie cette transcription en bambara:
-            - Garde la structure naturelle de la langue bambara
-            - Corrige la ponctuation de base
-            - Maintient les expressions typiques
-            - Si des mots sont en français, garde-les tels quels
-            
-            Texte brut: {raw_text}
-            
-            Texte nettoyé en bambara:
-            """
+            "bambara": f"""Nettoie cette transcription qui mélange bambara et français:
+- Garde la structure naturelle de la langue bambara
+- Corrige la ponctuation de base
+- Maintient les expressions typiques
+- Si des mots sont en français, garde-les tels quels
+- Ne traduis PAS, garde la langue originale
+
+Texte brut: {raw_text}
+
+Texte nettoyé en gardant le mélange bambara-français:"""
         }
 
         prompt = prompts.get(style, prompts["propre"])
