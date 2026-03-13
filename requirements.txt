@@ -7,3 +7,7 @@ validators
 pillow
 numpy
 google-generativeai
+torch
+transformers
+accelerate
+safetensors
