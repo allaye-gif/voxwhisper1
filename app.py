@@ -232,7 +232,7 @@ if launch_button and input_source:
 
         # Transcription avec langue optionnelle
         if lang_codes[language] and lang_codes[language] != "auto":
-            transcription_text = transcriber.transcribe(audio_path, language=lang_codes[language])
+            transcription_text = transcriber.transcribe(audio_path)
         else:
             transcription_text = transcriber.transcribe(audio_path)
 
@@ -423,3 +423,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
