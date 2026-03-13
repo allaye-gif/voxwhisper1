@@ -8,7 +8,6 @@ from src.groq_client import GroqTranscriber
 from src.subscription import SubscriptionManager
 from src.gemini_formatter import GeminiFormatter
 from src.bambara_transcriber import BambaraTranscriber
-from src.multi_langue_transcriber import MultiLangueTranscriber
 
 # --- MODE DÉVELOPPEMENT ---
 DEV_MODE = True
@@ -63,6 +62,12 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 10px 15px -3px rgba(20, 184, 166, 0.3);
     }
+    .status-box {
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        font-weight: 500;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -89,7 +94,7 @@ try:
     gemini_available = True
 except KeyError:
     gemini_available = False
-    st.sidebar.warning("⚠️ Clé Gemini manquante - formatage désactivé")
+    st.sidebar.warning("⚠️ Clé Gemini manquante - formatage et bambara désactivés")
 
 # Initialisation
 SubscriptionManager.initialize_session()
@@ -110,7 +115,7 @@ if 'formatted_text' not in st.session_state:
 col_title, col_flag = st.columns([5, 1])
 with col_title:
     st.title("🇲🇱 VoxWhisper Mali")
-    st.markdown("**Transcription audio multi-langues : Français • Anglais • Bambara**")
+    st.markdown("**Transcription audio professionnelle : Français • Anglais • Bambara**")
 with col_flag:
     st.image("https://flagcdn.com/w320/ml.png", width=100)
 
@@ -152,8 +157,8 @@ with st.expander("🌍 Options avancées", expanded=True):
             [
                 "🇫🇷 Français",
                 "🇬🇧 Anglais",
-                "🇲🇱 Bambara (modèle spécialisé)",
-                "🔄 Mixte (Français + Bambara)",
+                "🇲🇱 Bambara (hybride Whisper + Gemini)",
+                "🔄 Mixte (toutes langues)",
                 "🤖 Auto (détection automatique)"
             ],
             index=4
@@ -162,30 +167,24 @@ with st.expander("🌍 Options avancées", expanded=True):
         lang_map = {
             "🇫🇷 Français": "fr",
             "🇬🇧 Anglais": "en",
-            "🇲🇱 Bambara (modèle spécialisé)": "bm",
-            "🔄 Mixte (Français + Bambara)": "mixed",
+            "🇲🇱 Bambara (hybride Whisper + Gemini)": "bm",
+            "🔄 Mixte (toutes langues)": "mixed",
             "🤖 Auto (détection automatique)": "auto"
         }
         selected_lang = lang_map[language]
     
     with col2:
         if selected_lang == "bm":
-            st.markdown("### 🇲🇱 Modèle bambara")
-            bambara_model = st.selectbox(
-                "Choix du modèle",
-                [
-                    "small - Open source (recommandé)",
-                    "v1 - Commercial (licence Apache)"
-                ],
-                index=0
-            )
-            
-            model_info = BambaraTranscriber.get_model_info()[
-                "small" if "small" in bambara_model else "v1"
-            ]
-            st.caption(f"**Précision:** {model_info['wer']} | **Licence:** {model_info['license']}")
+            st.markdown("### 🇲🇱 Mode Bambara")
+            st.info("""
+            **Approche professionnelle:**
+            1. Whisper transcrit l'audio
+            2. Gemini corrige et améliore le bambara
+            """)
+            if not gemini_available:
+                st.error("⚠️ Clé Gemini requise pour le bambara")
         else:
-            st.markdown("### 🤖 Modèle standard")
+            st.markdown("### 🤖 Mode standard")
             st.caption("Whisper-large-v3 via Groq (multilingue)")
 
 # Bouton de lancement
@@ -196,6 +195,11 @@ if launch_button and input_source:
     # Vérification abonnement
     if not DEV_MODE and not SubscriptionManager.is_active():
         st.warning("🔒 **Abonnement requis.**")
+        st.stop()
+
+    # Vérification spécifique pour bambara
+    if selected_lang == "bm" and not gemini_available:
+        st.error("❌ Le mode Bambara nécessite une clé Gemini. Veuillez l'ajouter dans les secrets.")
         st.stop()
 
     # Barre de progression
@@ -225,22 +229,16 @@ if launch_button and input_source:
         
         try:
             if selected_lang == "bm":
-                # Transcription bambara
-                model_key = "small" if "small" in bambara_model else "v1"
+                # Transcription bambara - approche hybride professionnelle
+                transcriber = BambaraTranscriber(GROQ_API_KEY, GEMINI_API_KEY)
+                transcription = transcriber.transcribe(audio_path)
                 
-                try:
-                    transcriber = BambaraTranscriber(model_key)
-                    transcription = transcriber.transcribe(audio_path)
-                except Exception as e:
-                    st.warning(f"Le modèle bambara spécialisé a échoué: {str(e)}")
-                    st.info("Utilisation du modèle standard Groq en secours...")
-                    transcriber = GroqTranscriber(GROQ_API_KEY)
-                    transcription = transcriber.transcribe(audio_path)
-                    
-            elif selected_lang == "mixed":
-                # Mode mixte
-                transcriber = MultiLangueTranscriber(GROQ_API_KEY, GEMINI_API_KEY if gemini_available else None)
-                transcription = transcriber.transcribe(audio_path, language_choice="mixed")
+            elif selected_lang == "mixed" and gemini_available:
+                # Mode mixte avec correction Gemini
+                transcriber = GroqTranscriber(GROQ_API_KEY)
+                raw = transcriber.transcribe(audio_path)
+                formatter = GeminiFormatter(GEMINI_API_KEY)
+                transcription = formatter.format_transcription(raw, style="bambara")
                 
             else:
                 # Mode standard (Groq)
@@ -248,8 +246,10 @@ if launch_button and input_source:
                 transcription = transcriber.transcribe(audio_path)
                 
         except Exception as e:
-            st.error(f"Erreur de transcription: {str(e)}")
-            raise
+            st.warning(f"Erreur sur le mode spécifique: {str(e)}")
+            st.info("Utilisation du mode standard en secours...")
+            transcriber = GroqTranscriber(GROQ_API_KEY)
+            transcription = transcriber.transcribe(audio_path)
 
         progress_bar.progress(80)
 
@@ -294,8 +294,8 @@ if st.session_state.current_transcription:
     lang_display = {
         "fr": "🇫🇷 Français",
         "en": "🇬🇧 Anglais",
-        "bm": "🇲🇱 Bambara",
-        "mixed": "🔄 Mixte (Français+Bambara)",
+        "bm": "🇲🇱 Bambara (corrigé par IA)",
+        "mixed": "🔄 Mixte",
         "auto": "🤖 Auto"
     }.get(st.session_state.current_lang, "🇫🇷 Français")
     
@@ -314,15 +314,16 @@ if st.session_state.current_transcription:
             use_container_width=True
         )
     with col_dl2:
+        srt_content = f"1\n00:00:00,000 --> 00:00:02,000\n{st.session_state.current_transcription}"
         st.download_button(
             "📥 Télécharger (.srt)",
-            f"1\n00:00:00,000 --> 00:00:02,000\n{st.session_state.current_transcription}",
+            srt_content,
             "subtitles.srt",
             use_container_width=True
         )
     
     # --- SECTION GEMINI (formatage optionnel) ---
-    if gemini_available:
+    if gemini_available and st.session_state.current_transcription:
         st.divider()
         st.subheader("✨ Améliorer avec Gemini")
         st.markdown("Choisissez un style de formatage :")
@@ -357,7 +358,7 @@ if st.session_state.current_transcription:
                     )
         
         with col_g4:
-            if st.button("🗣️ Bambara", use_container_width=True):
+            if st.button("🗣️ Améliorer bambara", use_container_width=True):
                 with st.spinner("Gemini améliore le bambara..."):
                     formatter = GeminiFormatter(GEMINI_API_KEY)
                     st.session_state.formatted_text = formatter.format_transcription(
@@ -376,8 +377,6 @@ if st.session_state.current_transcription:
                 "transcription_formatee.txt",
                 use_container_width=True
             )
-    else:
-        st.info("💡 Ajoutez GEMINI_API_KEY dans les secrets pour activer le formatage")
 
 # --- HISTORIQUE ---
 with st.sidebar:
@@ -409,8 +408,8 @@ st.divider()
 st.markdown(
     """
     <div style='text-align: center; color: gray; padding: 20px;'>
-        <strong>VoxWhisper Mali</strong> — Propulsé par Groq & Gemini • Modèles bambara par MALIBA-AI 🇲🇱<br>
-        <small>Français • English • Bambara • Mixte</small>
+        <strong>VoxWhisper Mali</strong> — Transcription professionnelle 🇲🇱<br>
+        <small>Français • English • Bambara • Propulsé par Groq & Gemini</small>
     </div>
     """,
     unsafe_allow_html=True
