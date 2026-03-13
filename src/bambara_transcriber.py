@@ -1,12 +1,22 @@
 """
 Module de transcription spécialisé pour le bambara
 Utilise des modèles fine-tunés par des chercheurs maliens
+Version corrigée sans conflit de tokenizers
 """
 import streamlit as st
 import torch
 import tempfile
 import os
-from transformers import pipeline, AutoModelForSpeechSeq2Seq, AutoProcessor
+import warnings
+warnings.filterwarnings("ignore", message=".*TokenizersBackend.*")
+
+# Import conditionnel pour éviter les conflits
+try:
+    from transformers import pipeline, AutoModelForSpeechSeq2Seq, AutoProcessor
+    TRANSFORMERS_AVAILABLE = True
+except ImportError as e:
+    TRANSFORMERS_AVAILABLE = False
+    st.error(f"Erreur d'import transformers: {e}")
 
 class BambaraTranscriber:
     """Transcription spécialisée pour la langue bambara"""
@@ -25,6 +35,9 @@ class BambaraTranscriber:
         Args:
             model_key: "best" (non-commercial), "small" (open source), ou "v1" (commercial)
         """
+        if not TRANSFORMERS_AVAILABLE:
+            raise ImportError("transformers n'est pas correctement installé")
+            
         self.model_key = model_key
         self.model_id = self.MODELS[model_key]
         self.pipe = None
@@ -33,27 +46,20 @@ class BambaraTranscriber:
         """Charge le modèle (peut prendre du temps la première fois)"""
         if self.pipe is None:
             with st.spinner(f"Chargement du modèle bambara ({self.model_key})..."):
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-                
-                # Charger le modèle et le processor
-                model = AutoModelForSpeechSeq2Seq.from_pretrained(
-                    self.model_id,
-                    torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-                    low_cpu_mem_usage=True,
-                    use_safetensors=True
-                )
-                model.to(device)
-                
-                processor = AutoProcessor.from_pretrained(self.model_id)
-                
-                # Créer le pipeline
-                self.pipe = pipeline(
-                    "automatic-speech-recognition",
-                    model=model,
-                    tokenizer=processor.tokenizer,
-                    feature_extractor=processor.feature_extractor,
-                    device=device,
-                )
+                try:
+                    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+                    torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+                    
+                    # Version simplifiée qui évite les problèmes de tokenizers
+                    self.pipe = pipeline(
+                        "automatic-speech-recognition",
+                        model=self.model_id,
+                        device=device,
+                        torch_dtype=torch_dtype
+                    )
+                except Exception as e:
+                    st.error(f"Erreur de chargement du modèle: {e}")
+                    raise
         return self.pipe
     
     def transcribe(self, audio_path):
