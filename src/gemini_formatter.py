@@ -11,8 +11,23 @@ class GeminiFormatter:
     def __init__(self, api_key):
         """Initialise le client Gemini"""
         genai.configure(api_key=api_key)
-        # Utiliser le bon nom de modèle (sans flash car c'est l'ancien nom)
-        self.model = genai.GenerativeModel('gemini-1.5-pro')  # ou 'gemini-pro'
+        
+        # Liste des modèles disponibles (pour debug)
+        try:
+            models = genai.list_models()
+            available_models = [m.name for m in models if 'generateContent' in m.supported_generation_methods]
+            # Prendre le premier modèle disponible qui fonctionne
+            if 'models/gemini-1.5-flash' in available_models:
+                self.model_name = 'models/gemini-1.5-flash'
+            elif 'models/gemini-pro' in available_models:
+                self.model_name = 'models/gemini-pro'
+            else:
+                self.model_name = available_models[0] if available_models else None
+        except:
+            # Fallback
+            self.model_name = 'models/gemini-pro'
+        
+        self.model = genai.GenerativeModel(self.model_name)
 
     def format_transcription(self, raw_text, style="propre"):
         """
@@ -59,6 +74,7 @@ Résumé:""",
 - Maintient les expressions typiques
 - Si des mots sont en français, garde-les tels quels
 - Ne traduis PAS, garde la langue originale
+- Améliore la lisibilité sans changer le sens
 
 Texte brut: {raw_text}
 
