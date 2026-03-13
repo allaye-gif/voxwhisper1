@@ -1,90 +1,44 @@
 """
-Module de formatage de texte avec Google Gemini
-Permet de nettoyer et structurer les transcriptions
+Module de formatage avec Google Gemini
+Version robuste avec gestion d'erreurs et prompts optimisés
 """
 import streamlit as st
 import google.generativeai as genai
+import time
 
 class GeminiFormatter:
-    """Formate les transcriptions brutes avec l'IA Gemini"""
-
     def __init__(self, api_key):
-        """Initialise le client Gemini"""
         genai.configure(api_key=api_key)
-        
-        # Liste des modèles disponibles (pour debug)
-        try:
-            models = genai.list_models()
-            available_models = [m.name for m in models if 'generateContent' in m.supported_generation_methods]
-            # Prendre le premier modèle disponible qui fonctionne
-            if 'models/gemini-1.5-flash' in available_models:
-                self.model_name = 'models/gemini-1.5-flash'
-            elif 'models/gemini-pro' in available_models:
-                self.model_name = 'models/gemini-pro'
-            else:
-                self.model_name = available_models[0] if available_models else None
-        except:
-            # Fallback
-            self.model_name = 'models/gemini-pro'
-        
-        self.model = genai.GenerativeModel(self.model_name)
-
-    def format_transcription(self, raw_text, style="propre"):
+        # Utiliser gemini-1.5-flash (le plus rapide et fiable)
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    def format_transcription(self, raw_text, style="propre", max_retries=2):
         """
-        Formate une transcription brute selon le style demandé
-
-        Styles disponibles:
-        - "propre": Nettoie la ponctuation, corrige les fautes légères
-        - "structure": Ajoute des paragraphes, structure logique
-        - "resume": Résumé concis du contenu
-        - "bambara": Formatage spécial pour le bambara
+        Formate avec retry automatique
         """
         prompts = {
-            "propre": f"""Nettoie cette transcription audio en corrigeant uniquement:
-- La ponctuation (points, virgules, majuscules)
-- Les fautes d'orthographe évidentes
-- Supprime les répétitions inutiles (euh, hum, etc.)
-Ne change PAS le sens et ne réécris PAS les phrases.
-
-Texte brut: {raw_text}
-
-Texte nettoyé:""",
+            "propre": f"Nettoie cette transcription (ponctuation, fautes, répétitions) sans changer le sens:\n\n{raw_text}",
+            "structure": f"Structure cette transcription en paragraphes logiques:\n\n{raw_text}",
+            "resume": f"Résume cette transcription en 3-5 phrases:\n\n{raw_text}",
+            "bambara": f"""
+            Transcription d'un audio contenant du bambara et français.
+            Règles:
+            - Garde chaque mot dans sa langue d'origine
+            - Corrige l'orthographe bambara (utilise ɛ, ɔ, ɲ, ŋ)
+            - Ajoute la ponctuation
+            - Ne traduis PAS
+            - Garde les expressions typiques
             
-            "structure": f"""Structure cette transcription audio:
-- Divise en paragraphes logiques
-- Ajoute des titres de sections si pertinent
-- Mets en forme les dialogues (si plusieurs personnes)
-- Corrige la ponctuation
-
-Texte brut: {raw_text}
-
-Texte structuré:""",
-            
-            "resume": f"""Résume cette transcription en 3-5 phrases clés:
-- Garde l'essentiel du message
-- Format concis
-
-Texte: {raw_text}
-
-Résumé:""",
-            
-            "bambara": f"""Nettoie cette transcription qui mélange bambara et français:
-- Garde la structure naturelle de la langue bambara
-- Corrige la ponctuation de base
-- Maintient les expressions typiques
-- Si des mots sont en français, garde-les tels quels
-- Ne traduis PAS, garde la langue originale
-- Améliore la lisibilité sans changer le sens
-
-Texte brut: {raw_text}
-
-Texte nettoyé en gardant le mélange bambara-français:"""
+            Texte: {raw_text}
+            """
         }
-
-        prompt = prompts.get(style, prompts["propre"])
         
-        try:
-            response = self.model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            return f"Erreur de formatage: {str(e)}\n\nTexte original:\n{raw_text}"
+        for attempt in range(max_retries):
+            try:
+                response = self.model.generate_content(prompts.get(style, prompts["propre"]))
+                return response.text
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    return f"{raw_text}\n\n[Note: Formatage temporairement indisponible]"
+                time.sleep(1)
+        return raw_text
