@@ -7,9 +7,10 @@ from src.audio_processor import AudioProcessor
 from src.groq_client import GroqTranscriber
 from src.subscription import SubscriptionManager
 from src.gemini_formatter import GeminiFormatter
+from src.bambara_transcriber import BambaraTranscriber
+from src.multi_langue_transcriber import MultiLangueTranscriber
 
 # --- MODE DÉVELOPPEMENT ---
-# Mettre à False en production pour activer l'abonnement
 DEV_MODE = True
 
 # --- CONFIGURATION DE LA PAGE ---
@@ -20,10 +21,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- STYLE CSS MODERNE (UX Premium) ---
+# --- STYLE CSS MODERNE ---
 st.markdown("""
     <style>
-    /* Couleurs inspirées du Mali : Vert, Or, Rouge */
     .main {
         background-color: #f8f9fa;
     }
@@ -34,7 +34,6 @@ st.markdown("""
     .stApp header {
         background: linear-gradient(90deg, #14b8a6 0%, #fbbf24 50%, #ef4444 100%);
     }
-    /* Zone d'upload stylisée */
     .upload-area {
         border: 3px dashed #14b8a6;
         border-radius: 20px;
@@ -47,11 +46,9 @@ st.markdown("""
         border-color: #fbbf24;
         background-color: #fef9e7;
     }
-    /* Barre de progression fluide */
     .stProgress > div > div > div > div {
         background: linear-gradient(90deg, #14b8a6, #fbbf24);
     }
-    /* Boutons */
     .stButton>button {
         border-radius: 50px;
         height: 3em;
@@ -66,238 +63,267 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 10px 15px -3px rgba(20, 184, 166, 0.3);
     }
-    /* Messages de statut */
-    .status-box {
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        font-weight: 500;
-    }
-    /* Style pour les boutons Gemini */
-    .gemini-button {
-        background: linear-gradient(135deg, #4285F4 0%, #9B72CB 50%, #DB4437 100%) !important;
+    .bambara-badge {
+        background: linear-gradient(135deg, #fbbf24, #ef4444);
+        color: white;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 0.8em;
+        margin-left: 10px;
     }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # --- INITIALISATION ---
 
-# 1. Vérification de FFmpeg (indispensable)
+# Vérification FFmpeg
 if not AudioProcessor.check_ffmpeg():
     st.error("""
     ❌ **FFmpeg n'est pas installé sur le système.**  
-    VoxWhisper Mali nécessite FFmpeg pour traiter les fichiers audio.  
-    Veuillez suivre les instructions d'installation dans le README.
+    VoxWhisper Mali nécessite FFmpeg pour traiter les fichiers audio.
     """)
     st.stop()
 
-# 2. Récupération de la clé API Groq depuis les secrets
+# Clé API Groq
 try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 except KeyError:
-    st.error("""
-    🔐 **Clé API Groq manquante.**  
-    Veuillez ajouter votre clé API dans les secrets de l'application.
-    """)
+    st.error("🔐 **Clé API Groq manquante.**")
     st.stop()
 
-# 3. Récupération de la clé API Gemini (optionnelle)
+# Clé API Gemini
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     gemini_available = True
 except KeyError:
     gemini_available = False
-    st.sidebar.warning("""
-    ⚠️ **Clé Gemini manquante**  
-    Ajoutez GEMINI_API_KEY dans les secrets pour activer le formatage avancé.
-    """)
+    st.sidebar.warning("⚠️ Clé Gemini manquante - formatage désactivé")
 
-# 4. Initialisation du gestionnaire d'abonnement
+# Initialisation
 SubscriptionManager.initialize_session()
 
-# 5. Initialisation des variables de session
+# Variables de session
 if 'history' not in st.session_state:
     st.session_state.history = []
 if 'current_transcription' not in st.session_state:
     st.session_state.current_transcription = None
+if 'current_lang' not in st.session_state:
+    st.session_state.current_lang = None
 if 'current_source' not in st.session_state:
     st.session_state.current_source = None
-if 'current_time' not in st.session_state:
-    st.session_state.current_time = None
 if 'formatted_text' not in st.session_state:
     st.session_state.formatted_text = None
-if 'show_compare' not in st.session_state:
-    st.session_state.show_compare = False
 
 # --- INTERFACE PRINCIPALE ---
-
-# Titre et description
 col_title, col_flag = st.columns([5, 1])
 with col_title:
     st.title("🇲🇱 VoxWhisper Mali")
-    st.markdown("**La transcription audio ultra-rapide, conçue pour le Mali.**")
+    st.markdown("**Transcription audio multi-langues : Français • Anglais • Bambara**")
 with col_flag:
     st.image("https://flagcdn.com/w320/ml.png", width=100)
 
 st.divider()
 
-# --- GESTION DE L'ABONNEMENT (Sidebar) ---
-# En mode développement, on n'affiche pas l'UI d'abonnement
-if not DEV_MODE:
-    SubscriptionManager.show_subscription_ui()
-else:
+# Sidebar - Mode développement
+if DEV_MODE:
     with st.sidebar:
         st.success("🔧 **MODE DÉVELOPPEMENT**")
-        st.info("L'abonnement est désactivé pour les tests.")
+        st.info("Abonnement désactivé pour les tests")
 
-# --- ZONE DE SAISIE PRINCIPALE (UX Premium) ---
+# --- ZONE DE SAISIE ---
 source_type = st.radio(
     "Choisissez votre source :",
-    ["📁 Fichier local (MP3, OGG, WhatsApp...)", "🌐 Lien YouTube"],
+    ["📁 Fichier local", "🌐 Lien YouTube"],
     horizontal=True
 )
 
 input_source = None
 if source_type == "🌐 Lien YouTube":
-    input_source = st.text_input(
-        "Collez le lien YouTube",
-        placeholder="https://www.youtube.com/watch?v=..."
-    )
+    input_source = st.text_input("Collez le lien YouTube", placeholder="https://youtube.com/watch?v=...")
 else:
-    # Grande zone d'upload stylisée
     st.markdown('<div class="upload-area">', unsafe_allow_html=True)
     input_source = st.file_uploader(
-        "Glissez-déposez votre fichier audio ou vidéo, ou cliquez pour parcourir",
-        type=["mp3", "wav", "m4a", "ogg", "opus", "flac", "aac", "mp4", "mov", "mkv", "3gp"],
+        "Glissez-déposez votre fichier",
+        type=["mp3", "wav", "m4a", "ogg", "opus", "flac", "mp4", "mov", "3gp"],
         label_visibility="collapsed"
     )
     st.markdown('</div>', unsafe_allow_html=True)
-    st.caption("Formats supportés : MP3, WAV, M4A, OGG, OPUS (WhatsApp), FLAC, AAC, MP4, MOV, MKV, 3GP")
+    st.caption("Formats supportés : MP3, WAV, OGG, OPUS (WhatsApp), MP4, etc.")
 
-# --- OPTIONS DE LANGUE (optionnel, pour aider Whisper) ---
-with st.expander("🌍 Options avancées", expanded=False):
-    language = st.selectbox(
-        "Langue principale (optionnel - laisse 'auto' pour détection automatique)",
-        ["auto", "Français", "Anglais", "Bambara", "Autre"],
-        index=0
-    )
+# --- OPTIONS DE TRANSCRIPTION ---
+with st.expander("🌍 Options avancées", expanded=True):
+    col1, col2 = st.columns(2)
     
-    lang_codes = {
-        "auto": None,
-        "Français": "fr",
-        "Anglais": "en",
-        "Bambara": "bm",
-        "Autre": None
-    }
+    with col1:
+        language = st.radio(
+            "Langue à transcrire",
+            [
+                "🇫🇷 Français",
+                "🇬🇧 Anglais",
+                "🇲🇱 Bambara (modèle spécialisé)",
+                "🔄 Mixte (Français + Bambara)",
+                "🤖 Auto (détection automatique)"
+            ],
+            index=4
+        )
+        
+        lang_map = {
+            "🇫🇷 Français": "fr",
+            "🇬🇧 Anglais": "en",
+            "🇲🇱 Bambara (modèle spécialisé)": "bm",
+            "🔄 Mixte (Français + Bambara)": "mixed",
+            "🤖 Auto (détection automatique)": "auto"
+        }
+        selected_lang = lang_map[language]
+    
+    with col2:
+        if selected_lang == "bm":
+            st.markdown("### 🇲🇱 Modèle bambara")
+            bambara_model = st.selectbox(
+                "Choix du modèle",
+                [
+                    "small - Open source (recommandé)",
+                    "best - Non-commercial (meilleure précision)",
+                    "v1 - Commercial (licence Apache)"
+                ],
+                index=0
+            )
+            
+            model_info = BambaraTranscriber.get_model_info()[
+                {"small": "small", "best": "best", "v1": "v1"}[
+                    bambara_model.split(" - ")[0]
+                ]
+            ]
+            st.caption(f"**Précision:** {model_info['wer']} | **Licence:** {model_info['license']}")
+            if "best" in bambara_model:
+                st.warning("⚠️ Usage non-commercial uniquement")
+        else:
+            st.markdown("### 🤖 Modèle standard")
+            st.caption("Whisper-large-v3 via Groq (multilingue)")
 
-# Bouton de lancement principal
+# Bouton de lancement
 launch_button = st.button("🚀 LANCER LA TRANSCRIPTION", use_container_width=True)
 
-# --- LOGIQUE PRINCIPALE DE TRANSCRIPTION ---
+# --- LOGIQUE PRINCIPALE ---
 if launch_button and input_source:
-    # Vérification de l'abonnement (UNIQUEMENT si pas en mode développement)
-    if not DEV_MODE:
-        if not SubscriptionManager.is_active():
-            st.warning("🔒 **Abonnement requis.** Veuillez vous abonner pour utiliser le service.")
-            st.stop()
-    else:
-        # Message discret en mode développement
-        st.info("⚙️ Mode développement : transcription gratuite activée")
+    # Vérification abonnement
+    if not DEV_MODE and not SubscriptionManager.is_active():
+        st.warning("🔒 **Abonnement requis.**")
+        st.stop()
 
-    # Initialisation des éléments UI de progression
+    # Barre de progression
     progress_bar = st.progress(0, text="Initialisation...")
-    status_placeholder = st.empty()
+    status = st.empty()
     time_placeholder = st.empty()
-
+    
     audio_path = None
     start_time = time.time()
 
     try:
         # ÉTAPE 1: Préparation audio
-        status_placeholder.info("🔄 **Étape 1/3 : Préparation du fichier audio...**")
-        progress_bar.progress(10, text="Conversion et compression...")
+        status.info("🔄 **Étape 1/3 : Préparation audio...**")
+        progress_bar.progress(20)
 
         if source_type == "🌐 Lien YouTube":
-            with st.spinner("Téléchargement depuis YouTube..."):
+            with st.spinner("Téléchargement YouTube..."):
                 audio_path = AudioProcessor.extract_youtube_audio(input_source)
         else:
-            with st.spinner("Conversion et optimisation..."):
+            with st.spinner("Conversion et amélioration..."):
                 audio_path = AudioProcessor.prepare_audio_file(input_source)
 
-        progress_bar.progress(40, text="Audio prêt. Envoi à l'IA...")
+        progress_bar.progress(40)
 
-        # ÉTAPE 2: Transcription via Groq
-        status_placeholder.info("🧠 **Étape 2/3 : L'IA Groq transcrit votre audio...**")
-        transcriber = GroqTranscriber(GROQ_API_KEY)
-
-        # Transcription avec langue optionnelle
-        if lang_codes[language] and lang_codes[language] != "auto":
-            transcription_text = transcriber.transcribe(audio_path)
+        # ÉTAPE 2: Transcription selon la langue
+        status.info("🧠 **Étape 2/3 : Transcription en cours...**")
+        
+        if selected_lang == "bm":
+            # Transcription bambara
+            model_key = {
+                "small - Open source (recommandé)": "small",
+                "best - Non-commercial (meilleure précision)": "best",
+                "v1 - Commercial (licence Apache)": "v1"
+            }[bambara_model]
+            
+            transcriber = BambaraTranscriber(model_key)
+            transcription = transcriber.transcribe(audio_path)
+            
+        elif selected_lang == "mixed":
+            # Mode mixte
+            transcriber = MultiLangueTranscriber(GROQ_API_KEY, GEMINI_API_KEY if gemini_available else None)
+            transcription = transcriber.transcribe(audio_path, language_choice="mixed")
+            
         else:
-            transcription_text = transcriber.transcribe(audio_path)
+            # Mode standard (Groq)
+            transcriber = GroqTranscriber(GROQ_API_KEY)
+            transcription = transcriber.transcribe(audio_path)
 
-        progress_bar.progress(80, text="Transcription reçue. Finalisation...")
-        status_placeholder.info("✍️ **Étape 3/3 : Finalisation du résultat...**")
+        progress_bar.progress(80)
 
-        # Calcul du temps écoulé
+        # ÉTAPE 3: Finalisation
         elapsed_time = time.time() - start_time
         time_placeholder.success(f"⏱️ **Temps total : {elapsed_time:.2f} secondes**")
+        progress_bar.progress(100)
+        status.success("✅ **Transcription terminée !**")
 
-        # ÉTAPE 3: Affichage des résultats
-        progress_bar.progress(100, text="Terminé !")
-        status_placeholder.success("✅ **Transcription terminée avec succès !**")
-
-        # Sauvegarde dans la session
-        st.session_state.current_transcription = transcription_text
+        # Sauvegarde
+        st.session_state.current_transcription = transcription
+        st.session_state.current_lang = selected_lang
         st.session_state.current_source = input_source.name if hasattr(input_source, 'name') else input_source
-        st.session_state.current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.formatted_text = None  # Reset formatage
+        st.session_state.formatted_text = None
         
-        # Sauvegarde dans l'historique
+        # Historique
         st.session_state.history.append({
-            "timestamp": st.session_state.current_time,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "source": st.session_state.current_source,
-            "text": transcription_text[:100] + "...",  # Aperçu
-            "full_text": transcription_text
+            "lang": selected_lang,
+            "text": transcription[:100] + "...",
+            "full_text": transcription
         })
 
     except Exception as e:
         progress_bar.empty()
-        status_placeholder.error(f"❌ Une erreur est survenue : {str(e)}")
-        st.exception(e)  # Pour le debug, à retirer en production
+        status.error(f"❌ **Erreur :** {str(e)}")
+        st.exception(e)
     finally:
-        # Nettoyage : supprimer le fichier temporaire
         if audio_path and os.path.exists(audio_path):
             try:
                 os.unlink(audio_path)
-            except Exception:
-                pass  # Ignorer les erreurs de nettoyage
+            except:
+                pass
 
-# --- AFFICHAGE DE LA TRANSCRIPTION (si disponible) ---
+# --- AFFICHAGE DE LA TRANSCRIPTION ---
 if st.session_state.current_transcription:
     st.divider()
     st.subheader("📝 Résultat de la transcription")
     
-    # Afficher la transcription brute
-    st.text_area("Texte transcrit", st.session_state.current_transcription, height=250)
+    # Badge de langue
+    lang_display = {
+        "fr": "🇫🇷 Français",
+        "en": "🇬🇧 Anglais",
+        "bm": "🇲🇱 Bambara",
+        "mixed": "🔄 Mixte (Français+Bambara)",
+        "auto": "🤖 Auto"
+    }.get(st.session_state.current_lang, "🇫🇷 Français")
     
-    # Options de téléchargement pour le texte brut
+    st.markdown(f"**Langue utilisée :** {lang_display}")
+    
+    # Texte transcrit
+    st.text_area("Transcription", st.session_state.current_transcription, height=250, key="transcription_display")
+    
+    # Boutons de téléchargement
     col_dl1, col_dl2 = st.columns(2)
     with col_dl1:
         st.download_button(
-            label="📥 Télécharger en .txt",
-            data=st.session_state.current_transcription,
-            file_name="transcription_voxwhisper.txt",
-            mime="text/plain",
+            "📥 Télécharger (.txt)",
+            st.session_state.current_transcription,
+            "transcription.txt",
             use_container_width=True
         )
     with col_dl2:
-        # Version SRT simplifiée
         st.download_button(
-            label="📥 Télécharger en .srt",
-            data="1\n00:00:00,000 --> 00:00:02,000\n" + st.session_state.current_transcription,
-            file_name="subtitles.srt",
-            mime="text/plain",
+            "📥 Télécharger (.srt)",
+            f"1\n00:00:00,000 --> 00:00:02,000\n{st.session_state.current_transcription}",
+            "subtitles.srt",
             use_container_width=True
         )
     
@@ -305,9 +331,8 @@ if st.session_state.current_transcription:
     if gemini_available:
         st.divider()
         st.subheader("✨ Améliorer avec Gemini")
-        st.markdown("Choisissez un style de formatage pour améliorer votre transcription :")
+        st.markdown("Choisissez un style de formatage :")
         
-        # Boutons de formatage
         col_g1, col_g2, col_g3, col_g4 = st.columns(4)
         
         with col_g1:
@@ -315,112 +340,84 @@ if st.session_state.current_transcription:
                 with st.spinner("Gemini nettoie le texte..."):
                     formatter = GeminiFormatter(GEMINI_API_KEY)
                     st.session_state.formatted_text = formatter.format_transcription(
-                        st.session_state.current_transcription, 
+                        st.session_state.current_transcription,
                         style="propre"
                     )
-                    st.session_state.format_style = "nettoyé"
-                    st.session_state.show_compare = False
-                    st.rerun()
         
         with col_g2:
             if st.button("📑 Structurer", use_container_width=True):
                 with st.spinner("Gemini structure le texte..."):
                     formatter = GeminiFormatter(GEMINI_API_KEY)
                     st.session_state.formatted_text = formatter.format_transcription(
-                        st.session_state.current_transcription, 
+                        st.session_state.current_transcription,
                         style="structure"
                     )
-                    st.session_state.format_style = "structuré"
-                    st.session_state.show_compare = False
-                    st.rerun()
         
         with col_g3:
             if st.button("📌 Résumer", use_container_width=True):
                 with st.spinner("Gemini résume le texte..."):
                     formatter = GeminiFormatter(GEMINI_API_KEY)
                     st.session_state.formatted_text = formatter.format_transcription(
-                        st.session_state.current_transcription, 
+                        st.session_state.current_transcription,
                         style="resume"
                     )
-                    st.session_state.format_style = "résumé"
-                    st.session_state.show_compare = False
-                    st.rerun()
         
         with col_g4:
             if st.button("🗣️ Bambara", use_container_width=True):
-                with st.spinner("Gemini formate en bambara..."):
+                with st.spinner("Gemini améliore le bambara..."):
                     formatter = GeminiFormatter(GEMINI_API_KEY)
                     st.session_state.formatted_text = formatter.format_transcription(
-                        st.session_state.current_transcription, 
+                        st.session_state.current_transcription,
                         style="bambara"
                     )
-                    st.session_state.format_style = "bambara"
-                    st.session_state.show_compare = False
-                    st.rerun()
         
-        # Affichage du texte formaté si disponible
+        # Affichage du texte formaté
         if st.session_state.formatted_text:
             st.divider()
-            
-            # Options de comparaison
-            col_comp1, col_comp2 = st.columns([3, 1])
-            with col_comp1:
-                st.subheader(f"📋 Texte {st.session_state.format_style}")
-            with col_comp2:
-                if st.button("🔄 Comparer avec l'original", use_container_width=True):
-                    st.session_state.show_compare = not st.session_state.show_compare
-                    st.rerun()
-            
-            # Mode comparaison ou simple affichage
-            if st.session_state.show_compare:
-                col_orig, col_form = st.columns(2)
-                with col_orig:
-                    st.markdown("**📄 Original**")
-                    st.text_area("", st.session_state.current_transcription, height=250, key="orig_compare", label_visibility="collapsed")
-                with col_form:
-                    st.markdown(f"**✨ {st.session_state.format_style.capitalize()}**")
-                    st.text_area("", st.session_state.formatted_text, height=250, key="form_compare", label_visibility="collapsed")
-            else:
-                st.text_area("", st.session_state.formatted_text, height=250, label_visibility="collapsed")
-            
-            # Bouton de téléchargement pour la version formatée
+            st.subheader("📋 Résultat formaté")
+            st.text_area("", st.session_state.formatted_text, height=200, key="formatted_display")
             st.download_button(
-                label=f"📥 Télécharger version {st.session_state.format_style}",
-                data=st.session_state.formatted_text,
-                file_name=f"transcription_{st.session_state.format_style}.txt",
-                mime="text/plain",
+                "📥 Télécharger version formatée",
+                st.session_state.formatted_text,
+                "transcription_formatee.txt",
                 use_container_width=True
             )
     else:
-        st.info("💡 Pour activer le formatage Gemini, ajoutez votre clé API Gemini dans les secrets Streamlit.")
+        st.info("💡 Ajoutez GEMINI_API_KEY dans les secrets pour activer le formatage")
 
-# --- AFFICHAGE DE L'HISTORIQUE ---
+# --- HISTORIQUE ---
 with st.sidebar:
     st.divider()
     st.header("📜 Historique")
     if st.session_state.history:
         for i, item in enumerate(reversed(st.session_state.history[-10:])):
-            with st.expander(f"🕒 {item['timestamp']}"):
+            lang_emoji = {
+                "bm": "🇲🇱",
+                "mixed": "🔄",
+                "fr": "🇫🇷",
+                "en": "🇬🇧",
+                "auto": "🤖"
+            }.get(item.get('lang', 'fr'), "🇫🇷")
+            
+            with st.expander(f"{lang_emoji} {item['timestamp'][:16]}"):
                 st.markdown(f"**Source:** {item['source']}")
-                st.markdown(f"**Aperçu:** {item['text']}")
-                if st.button("Charger cette transcription", key=f"hist_{i}"):
+                st.caption(item['text'])
+                if st.button("Charger", key=f"hist_{i}"):
                     st.session_state.current_transcription = item['full_text']
-                    st.session_state.current_source = item['source']
-                    st.session_state.current_time = item['timestamp']
+                    st.session_state.current_lang = item.get('lang', 'fr')
                     st.session_state.formatted_text = None
                     st.rerun()
     else:
-        st.info("Aucune transcription pour le moment.")
+        st.info("Aucune transcription")
 
 # --- PIED DE PAGE ---
 st.divider()
 st.markdown(
     """
     <div style='text-align: center; color: gray; padding: 20px;'>
-        <strong>VoxWhisper Mali</strong> — Propulsé par l'IA Groq • Formaté par Gemini • Conçu pour le Mali 🇲🇱<br>
-        <small>Français • English • Bambara • Paiements sécurisés via Orange Money & Wave (à venir)</small>
+        <strong>VoxWhisper Mali</strong> — Propulsé par Groq & Gemini • Modèles bambara par MALIBA-AI 🇲🇱<br>
+        <small>Français • English • Bambara • Mixte</small>
     </div>
     """,
     unsafe_allow_html=True
 )
-
