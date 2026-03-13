@@ -4,52 +4,233 @@ import os
 import subprocess
 import sys
 
-# --- CONFIGURATION DE LA PAGE (DOIT ÊTRE LA PREMIÈRE COMMANDE STREAMLIT) ---
+# --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
-    page_title="VoxWhisper Mali",
-    page_icon="🇲🇱",
+    page_title="AllayeVox Mali",
+    page_icon="🎙️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
+# --- STYLE CSS ULTRA PREMIUM ---
+st.markdown("""
+    <style>
+        /* Import des polices modernes */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        /* Reset et base */
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Fond général avec dégradé subtil */
+        .main {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        /* Style du header */
+        .header-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-radius: 20px;
+            margin: 1rem 0 2rem 0;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Titre principal */
+        .main-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+        
+        /* Sous-titre */
+        .sub-title {
+            font-size: 1.2rem;
+            font-weight: 300;
+            color: #4a5568;
+            opacity: 0.9;
+        }
+        
+        /* Zone d'upload ultra stylisée */
+        .upload-area {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 3px dashed rgba(102, 126, 234, 0.3);
+            border-radius: 40px;
+            padding: 80px 40px;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.1);
+        }
+        
+        .upload-area:hover {
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.98);
+            transform: translateY(-5px);
+            box-shadow: 0 40px 80px rgba(102, 126, 234, 0.2);
+        }
+        
+        .upload-area svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+        
+        .upload-text {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            font-size: 1rem;
+            color: #718096;
+            font-weight: 300;
+        }
+        
+        /* Bouton principal */
+        .stButton > button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 1.2rem;
+            padding: 1rem 2rem;
+            border-radius: 60px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            width: 100%;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        
+        .stButton > button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.6);
+        }
+        
+        /* Cartes de fonctionnalités */
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: all 0.3s ease;
+            height: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 30px 60px rgba(102, 126, 234, 0.3);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        
+        .feature-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        
+        .feature-desc {
+            color: #718096;
+            font-weight: 300;
+            line-height: 1.6;
+        }
+        
+        /* Badges de langue */
+        .lang-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            margin: 0 5px 10px 0;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .lang-badge.fr { background: linear-gradient(135deg, #0055A4, #EF4135); color: white; }
+        .lang-badge.en { background: linear-gradient(135deg, #012169, #C8102E); color: white; }
+        .lang-badge.bm { background: linear-gradient(135deg, #14B8A6, #0F766E); color: white; }
+        
+        /* Résultat de transcription */
+        .result-container {
+            background: white;
+            border-radius: 30px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
+        }
+        
+        .result-header {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        /* Timer */
+        .timer-badge {
+            background: linear-gradient(135deg, #48BB78, #2F855A);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-weight: 500;
+            display: inline-block;
+        }
+        
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 40px 0;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 300;
+        }
+        
+        /* Hide Streamlit branding */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+    </style>
+""", unsafe_allow_html=True)
 
-
-# Importer nos modules personnalisés
+# Importer nos modules
 from src.audio_processor import AudioProcessor
 from src.groq_client import GroqTranscriber
 from src.subscription import SubscriptionManager
-from src.gemini_formatter import GeminiFormatter
-from src.bambara_transcriber import BambaraTranscriber
-
-# --- MODE DÉVELOPPEMENT ---
-DEV_MODE = True
 
 # --- INITIALISATION ---
-
-# Vérification FFmpeg
 if not AudioProcessor.check_ffmpeg():
-    st.error("""
-    ❌ **FFmpeg n'est pas installé sur le système.**  
-    VoxWhisper Mali nécessite FFmpeg pour traiter les fichiers audio.
-    """)
+    st.error("Configuration système requise...")
     st.stop()
 
-# Clé API Groq
 try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 except KeyError:
-    st.error("🔐 **Clé API Groq manquante.**")
+    st.error("Configuration en cours...")
     st.stop()
 
-# Clé API Gemini
-try:
-    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-    gemini_available = True
-except KeyError:
-    gemini_available = False
-    st.sidebar.warning("⚠️ Clé Gemini manquante - formatage et bambara désactivés")
-
-# Initialisation
 SubscriptionManager.initialize_session()
 
 # Variables de session
@@ -57,359 +238,149 @@ if 'history' not in st.session_state:
     st.session_state.history = []
 if 'current_transcription' not in st.session_state:
     st.session_state.current_transcription = None
-if 'current_lang' not in st.session_state:
-    st.session_state.current_lang = None
-if 'current_source' not in st.session_state:
-    st.session_state.current_source = None
-if 'formatted_text' not in st.session_state:
-    st.session_state.formatted_text = None
 
-# --- STYLE CSS MODERNE ---
+# --- HEADER PREMIUM ---
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.markdown("""
+        <div class="header-container">
+            <div class="main-title">AllayeVox Mali</div>
+            <div class="sub-title">La voix du Mali, transcrite par l'IA</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+# --- BADGES LANGUES ---
 st.markdown("""
-    <style>
-    .main {
-        background-color: #f8f9fa;
-    }
-    h1 {
-        color: #14b8a6;
-        font-weight: 700;
-    }
-    .stApp header {
-        background: linear-gradient(90deg, #14b8a6 0%, #fbbf24 50%, #ef4444 100%);
-    }
-    .upload-area {
-        border: 3px dashed #14b8a6;
-        border-radius: 20px;
-        padding: 50px;
-        text-align: center;
-        background-color: #ffffff;
-        transition: 0.3s;
-    }
-    .upload-area:hover {
-        border-color: #fbbf24;
-        background-color: #fef9e7;
-    }
-    .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #14b8a6, #fbbf24);
-    }
-    .stButton>button {
-        border-radius: 50px;
-        height: 3em;
-        background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
-        color: white;
-        font-weight: bold;
-        border: none;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        transition: all 0.2s;
-    }
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(20, 184, 166, 0.3);
-    }
-    </style>
+    <div style="text-align: center; margin-bottom: 40px;">
+        <span class="lang-badge fr">🇫🇷 Français</span>
+        <span class="lang-badge en">🇬🇧 English</span>
+        <span class="lang-badge bm">🇲🇱 Bamanankan</span>
+    </div>
 """, unsafe_allow_html=True)
 
-# --- INTERFACE PRINCIPALE ---
-col_title, col_flag = st.columns([5, 1])
-with col_title:
-    st.title("🇲🇱 VoxWhisper Mali")
-    st.markdown("**Transcription audio professionnelle : Français • Anglais • Bambara**")
-with col_flag:
-    st.image("https://flagcdn.com/w320/ml.png", width=100)
-
-st.divider()
-
-# Sidebar - Mode développement
-if DEV_MODE:
-    with st.sidebar:
-        st.success("🔧 **MODE DÉVELOPPEMENT**")
-        st.info("Abonnement désactivé pour les tests")
-
-# --- ZONE DE SAISIE ---
+# --- ZONE D'UPLOAD PREMIUM ---
 source_type = st.radio(
-    "Choisissez votre source :",
-    ["📁 Fichier local", "🌐 Lien YouTube"],
-    horizontal=True
+    "",
+    ["🎤 Fichier audio", "▶️ YouTube"],
+    horizontal=True,
+    label_visibility="collapsed"
 )
 
 input_source = None
-if source_type == "🌐 Lien YouTube":
-    input_source = st.text_input("Collez le lien YouTube", placeholder="https://youtube.com/watch?v=...")
-else:
-    st.markdown('<div class="upload-area">', unsafe_allow_html=True)
-    input_source = st.file_uploader(
-        "Glissez-déposez votre fichier",
-        type=["mp3", "wav", "m4a", "ogg", "opus", "flac", "mp4", "mov", "3gp"],
+if source_type == "▶️ YouTube":
+    input_source = st.text_input(
+        "",
+        placeholder="https://youtube.com/watch?v=...",
         label_visibility="collapsed"
     )
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.caption("Formats supportés : MP3, WAV, OGG, OPUS (WhatsApp), MP4, etc.")
-
-# --- OPTIONS DE TRANSCRIPTION ---
-with st.expander("🌍 Options avancées", expanded=True):
-    col1, col2 = st.columns(2)
+else:
+    st.markdown("""
+        <div class="upload-area" id="upload-area">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <div class="upload-text">Glissez votre fichier audio</div>
+            <div class="upload-hint">MP3, WAV, M4A, OGG • WhatsApp, enregistrements, podcasts</div>
+        </div>
+    """, unsafe_allow_html=True)
     
-    with col1:
-        language = st.radio(
-            "Langue à transcrire",
-            [
-                "🇫🇷 Français",
-                "🇬🇧 Anglais",
-                "🇲🇱 Bambara (hybride Whisper + Gemini)",
-                "🔄 Mixte (toutes langues)",
-                "🤖 Auto (détection automatique)"
-            ],
-            index=4
-        )
-        
-        lang_map = {
-            "🇫🇷 Français": "fr",
-            "🇬🇧 Anglais": "en",
-            "🇲🇱 Bambara (hybride Whisper + Gemini)": "bm",
-            "🔄 Mixte (toutes langues)": "mixed",
-            "🤖 Auto (détection automatique)": "auto"
-        }
-        selected_lang = lang_map[language]
-    
-    with col2:
-        if selected_lang == "bm":
-            st.markdown("### 🇲🇱 Mode Bambara")
-            st.info("""
-            **Approche professionnelle:**
-            1. Whisper transcrit l'audio
-            2. Gemini corrige et améliore le bambara
-            """)
-            if not gemini_available:
-                st.error("⚠️ Clé Gemini requise pour le bambara")
-        else:
-            st.markdown("### 🤖 Mode standard")
-            st.caption("Whisper-large-v3 via Groq (multilingue)")
+    input_source = st.file_uploader(
+        "",
+        type=["mp3", "wav", "m4a", "ogg", "opus", "flac", "mp4", "mov"],
+        label_visibility="collapsed"
+    )
 
-# Bouton de lancement
-launch_button = st.button("🚀 LANCER LA TRANSCRIPTION", use_container_width=True)
+# --- BOUTON PRINCIPAL ---
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    launch_button = st.button("✨ Transcrire maintenant", use_container_width=True)
 
-# --- LOGIQUE PRINCIPALE ---
+# --- LOGIQUE DE TRANSCRIPTION ---
 if launch_button and input_source:
-    # Vérification abonnement
-    if not DEV_MODE and not SubscriptionManager.is_active():
-        st.warning("🔒 **Abonnement requis.**")
-        st.stop()
-
-    # Vérification spécifique pour bambara
-    if selected_lang == "bm" and not gemini_available:
-        st.error("❌ Le mode Bambara nécessite une clé Gemini. Veuillez l'ajouter dans les secrets.")
-        st.stop()
-
     # Barre de progression
-    progress_bar = st.progress(0, text="Initialisation...")
+    progress_bar = st.progress(0)
     status = st.empty()
-    time_placeholder = st.empty()
     
     audio_path = None
     start_time = time.time()
-
+    
     try:
-        # ÉTAPE 1: Préparation audio
-        status.info("🔄 **Étape 1/3 : Préparation audio...**")
+        # Étape 1: Préparation
+        status.info("🎵 Préparation du fichier...")
         progress_bar.progress(20)
-
-        if source_type == "🌐 Lien YouTube":
-            with st.spinner("Téléchargement YouTube..."):
-                audio_path = AudioProcessor.extract_youtube_audio(input_source)
-        else:
-            with st.spinner("Conversion et amélioration..."):
-                audio_path = AudioProcessor.prepare_audio_file(input_source)
-
-        progress_bar.progress(40)
-
-        # ÉTAPE 2: Transcription selon la langue
-        status.info("🧠 **Étape 2/3 : Transcription en cours...**")
         
-        try:
-            if selected_lang == "bm":
-                # Transcription bambara - approche hybride professionnelle
-                transcriber = BambaraTranscriber(GROQ_API_KEY, GEMINI_API_KEY)
-                transcription = transcriber.transcribe(audio_path)
-                
-            elif selected_lang == "mixed" and gemini_available:
-                # Mode mixte avec correction Gemini
-                transcriber = GroqTranscriber(GROQ_API_KEY)
-                raw = transcriber.transcribe(audio_path)
-                formatter = GeminiFormatter(GEMINI_API_KEY)
-                transcription = formatter.format_transcription(raw, style="bambara")
-                
-            else:
-                # Mode standard (Groq)
-                transcriber = GroqTranscriber(GROQ_API_KEY)
-                transcription = transcriber.transcribe(audio_path)
-                
-        except Exception as e:
-            st.warning(f"Erreur sur le mode spécifique: {str(e)}")
-            st.info("Utilisation du mode standard en secours...")
-            transcriber = GroqTranscriber(GROQ_API_KEY)
-            transcription = transcriber.transcribe(audio_path)
-
-        progress_bar.progress(80)
-
-        # ÉTAPE 3: Finalisation
-        elapsed_time = time.time() - start_time
-        time_placeholder.success(f"⏱️ **Temps total : {elapsed_time:.2f} secondes**")
+        if source_type == "▶️ YouTube":
+            audio_path = AudioProcessor.extract_youtube_audio(input_source)
+        else:
+            audio_path = AudioProcessor.prepare_audio_file(input_source)
+        
+        # Étape 2: Transcription
+        status.info("🧠 L'IA analyse votre audio...")
+        progress_bar.progress(50)
+        
+        transcriber = GroqTranscriber(GROQ_API_KEY)
+        transcription = transcriber.transcribe(audio_path)
+        
+        # Étape 3: Finalisation
         progress_bar.progress(100)
-        status.success("✅ **Transcription terminée !**")
-
+        status.success("✅ Transcription terminée !")
+        
+        elapsed_time = time.time() - start_time
+        
         # Sauvegarde
         st.session_state.current_transcription = transcription
-        st.session_state.current_lang = selected_lang
-        st.session_state.current_source = input_source.name if hasattr(input_source, 'name') else input_source
-        st.session_state.formatted_text = None
-        
-        # Historique
         st.session_state.history.append({
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "source": st.session_state.current_source,
-            "lang": selected_lang,
-            "text": transcription[:100] + "...",
-            "full_text": transcription
+            "timestamp": time.strftime("%H:%M"),
+            "text": transcription[:50] + "..."
         })
-
+        
     except Exception as e:
-        progress_bar.empty()
-        status.error(f"❌ **Erreur :** {str(e)}")
-        st.exception(e)
+        st.error(f"Une erreur est survenue: {str(e)}")
     finally:
         if audio_path and os.path.exists(audio_path):
-            try:
-                os.unlink(audio_path)
-            except:
-                pass
+            os.unlink(audio_path)
 
-# --- AFFICHAGE DE LA TRANSCRIPTION ---
+# --- AFFICHAGE DU RÉSULTAT ---
 if st.session_state.current_transcription:
-    st.divider()
-    st.subheader("📝 Résultat de la transcription")
+    st.markdown("""
+        <div class="result-container">
+            <div class="result-header">
+                <span>📝 Transcription</span>
+            </div>
+    """, unsafe_allow_html=True)
     
-    # Badge de langue
-    lang_display = {
-        "fr": "🇫🇷 Français",
-        "en": "🇬🇧 Anglais",
-        "bm": "🇲🇱 Bambara (corrigé par IA)",
-        "mixed": "🔄 Mixte",
-        "auto": "🤖 Auto"
-    }.get(st.session_state.current_lang, "🇫🇷 Français")
+    st.text_area(
+        "",
+        st.session_state.current_transcription,
+        height=300,
+        label_visibility="collapsed"
+    )
     
-    st.markdown(f"**Langue utilisée :** {lang_display}")
-    
-    # Texte transcrit
-    st.text_area("Transcription", st.session_state.current_transcription, height=250, key="transcription_display")
-    
-    # Boutons de téléchargement
-    col_dl1, col_dl2 = st.columns(2)
-    with col_dl1:
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
         st.download_button(
-            "📥 Télécharger (.txt)",
+            "📥 Télécharger",
             st.session_state.current_transcription,
             "transcription.txt",
             use_container_width=True
         )
-    with col_dl2:
-        srt_content = f"1\n00:00:00,000 --> 00:00:02,000\n{st.session_state.current_transcription}"
-        st.download_button(
-            "📥 Télécharger (.srt)",
-            srt_content,
-            "subtitles.srt",
-            use_container_width=True
-        )
+    with col2:
+        if st.button("📋 Copier", use_container_width=True):
+            st.write("Copié !")
     
-    # --- SECTION GEMINI (formatage optionnel) ---
-    if gemini_available and st.session_state.current_transcription:
-        st.divider()
-        st.subheader("✨ Améliorer avec Gemini")
-        st.markdown("Choisissez un style de formatage :")
-        
-        col_g1, col_g2, col_g3, col_g4 = st.columns(4)
-        
-        with col_g1:
-            if st.button("🧹 Nettoyer", use_container_width=True):
-                with st.spinner("Gemini nettoie le texte..."):
-                    formatter = GeminiFormatter(GEMINI_API_KEY)
-                    st.session_state.formatted_text = formatter.format_transcription(
-                        st.session_state.current_transcription,
-                        style="propre"
-                    )
-        
-        with col_g2:
-            if st.button("📑 Structurer", use_container_width=True):
-                with st.spinner("Gemini structure le texte..."):
-                    formatter = GeminiFormatter(GEMINI_API_KEY)
-                    st.session_state.formatted_text = formatter.format_transcription(
-                        st.session_state.current_transcription,
-                        style="structure"
-                    )
-        
-        with col_g3:
-            if st.button("📌 Résumer", use_container_width=True):
-                with st.spinner("Gemini résume le texte..."):
-                    formatter = GeminiFormatter(GEMINI_API_KEY)
-                    st.session_state.formatted_text = formatter.format_transcription(
-                        st.session_state.current_transcription,
-                        style="resume"
-                    )
-        
-        with col_g4:
-            if st.button("🗣️ Améliorer bambara", use_container_width=True):
-                with st.spinner("Gemini améliore le bambara..."):
-                    formatter = GeminiFormatter(GEMINI_API_KEY)
-                    st.session_state.formatted_text = formatter.format_transcription(
-                        st.session_state.current_transcription,
-                        style="bambara"
-                    )
-        
-        # Affichage du texte formaté
-        if st.session_state.formatted_text:
-            st.divider()
-            st.subheader("📋 Résultat formaté")
-            st.text_area("", st.session_state.formatted_text, height=200, key="formatted_display")
-            st.download_button(
-                "📥 Télécharger version formatée",
-                st.session_state.formatted_text,
-                "transcription_formatee.txt",
-                use_container_width=True
-            )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# --- HISTORIQUE ---
+# --- HISTORIQUE (discret) ---
 with st.sidebar:
-    st.divider()
-    st.header("📜 Historique")
+    st.markdown("### 📜 Récent")
     if st.session_state.history:
-        for i, item in enumerate(reversed(st.session_state.history[-10:])):
-            lang_emoji = {
-                "bm": "🇲🇱",
-                "mixed": "🔄",
-                "fr": "🇫🇷",
-                "en": "🇬🇧",
-                "auto": "🤖"
-            }.get(item.get('lang', 'fr'), "🇫🇷")
-            
-            with st.expander(f"{lang_emoji} {item['timestamp'][:16]}"):
-                st.markdown(f"**Source:** {item['source']}")
-                st.caption(item['text'])
-                if st.button("Charger", key=f"hist_{i}"):
-                    st.session_state.current_transcription = item['full_text']
-                    st.session_state.current_lang = item.get('lang', 'fr')
-                    st.session_state.formatted_text = None
-                    st.rerun()
-    else:
-        st.info("Aucune transcription")
+        for item in reversed(st.session_state.history[-5:]):
+            st.markdown(f"**{item['timestamp']}**  \n{item['text']}")
+            st.divider()
 
-# --- PIED DE PAGE ---
-st.divider()
-st.markdown(
-    """
-    <div style='text-align: center; color: gray; padding: 20px;'>
-        <strong>VoxWhisper Mali</strong> — Transcription professionnelle 🇲🇱<br>
-        <small>Français • English • Bambara • Propulsé par Groq & Gemini</small>
+# --- FOOTER ---
+st.markdown("""
+    <div class="footer">
+        AllayeVox Mali • Propulsé par Groq • Conçu à Bamako 🇲🇱
     </div>
-    """,
-    unsafe_allow_html=True
-)
-
+""", unsafe_allow_html=True)
