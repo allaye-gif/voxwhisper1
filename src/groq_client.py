@@ -19,6 +19,9 @@ class GroqTranscriber:
         """
         Envoie un fichier audio à l'API Groq pour transcription.
         Retourne le texte transcrit.
+        
+        Note: Whisper détecte automatiquement la langue,
+        pas besoin de paramètre language.
         """
         try:
             with open(audio_file_path, "rb") as file:
@@ -26,8 +29,7 @@ class GroqTranscriber:
                 transcription = self.client.audio.transcriptions.create(
                     file=(os.path.basename(audio_file_path), file.read()),
                     model="whisper-large-v3",
-                    response_format="text",  # On veut du texte brut, pas du JSON
-                    language="fr",  # Peut être optionnel, mais aide pour le français du Mali
+                    response_format="text",  # On veut du texte brut
                 )
             return transcription
         except Exception as e:
