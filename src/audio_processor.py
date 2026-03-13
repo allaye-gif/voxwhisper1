@@ -16,9 +16,9 @@ AudioSegment.converter = "ffmpeg"
 class AudioProcessor:
     """Gère toute la logique de traitement des fichiers audio."""
 
-    # Limite de taille pour l'API Groq (en octets) - on vise 24MB pour être sûr
+    # Limite de taille pour l'API Groq (en octets)
     MAX_FILE_SIZE_BYTES = 24 * 1024 * 1024
-    TARGET_BITRATE = "64k"  # Bitrate pour la compression (excellent pour la parole)
+    TARGET_BITRATE = "64k"
 
     @staticmethod
     def check_ffmpeg():
@@ -47,7 +47,7 @@ class AudioProcessor:
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
-                'preferredquality': '64',  # Qualité faible pour économiser du temps/taille
+                'preferredquality': '64',
             }],
             'quiet': True,
             'no_warnings': True,
@@ -56,8 +56,6 @@ class AudioProcessor:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-                # Le chemin final après post-traitement
-                # yt-dlp ajoute l'ID de la vidéo au nom
                 base_filename = ydl.prepare_filename(info).rsplit('.', 1)[0]
                 audio_path = f"{base_filename}.mp3"
                 return audio_path
@@ -65,41 +63,78 @@ class AudioProcessor:
             raise Exception(f"Échec du téléchargement YouTube : {str(e)}")
 
     @staticmethod
+    def enhance_audio_for_speech(input_path, output_path):
+        """
+        Améliore la qualité audio pour la transcription vocale.
+        - Réduction du bruit de fond
+        - Filtrage pour isoler la voix
+        - Normalisation du volume
+        """
+        try:
+            # Commande ffmpeg pour améliorer la voix
+            # highpass: coupe les basses fréquences (<200Hz)
+            # lowpass: coupe les hautes fréquences (>3000Hz)
+            # afftdn: réduction de bruit adaptative
+            # volume: amplification légère
+            cmd = [
+                'ffmpeg', '-i', input_path,
+                '-af', 'highpass=f=200, lowpass=f=3000, afftdn=nf=-25, volume=2',
+                '-y', output_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                return output_path
+            else:
+                # Si l'amélioration échoue, retourner le fichier original
+                return input_path
+        except Exception as e:
+            # En cas d'erreur, continuer sans amélioration
+            return input_path
+
+    @staticmethod
     def prepare_audio_file(uploaded_file):
         """
         Prend un fichier uploadé, le convertit en MP3 et le compresse si nécessaire.
+        Applique une amélioration pour la voix.
         Retourne le chemin du fichier MP3 prêt à l'emploi.
         """
-        # Sauvegarder le fichier uploadé dans un fichier temporaire avec son extension d'origine
+        # Sauvegarder le fichier uploadé
         file_extension = uploaded_file.name.split('.')[-1].lower()
         with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as tmp_input:
             tmp_input.write(uploaded_file.getvalue())
             input_path = tmp_input.name
 
-        # Fichier de sortie temporaire (toujours en .mp3)
+        # Fichier de sortie temporaire
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_output:
             output_path = tmp_output.name
+            
+        with tempfile.NamedTemporaryFile(delete=False, suffix="_enhanced.mp3") as tmp_enhanced:
+            enhanced_path = tmp_enhanced.name
 
         try:
-            # Charger l'audio avec pydub (supporte énormément de formats)
-            # Gère .opus, .ogg, .m4a, etc.
+            # Charger l'audio avec pydub
             audio = AudioSegment.from_file(input_path)
 
-            # Exporter en MP3 avec un bitrate contrôlé
+            # Exporter en MP3 avec bitrate contrôlé
             audio.export(output_path, format="mp3", bitrate=AudioProcessor.TARGET_BITRATE)
 
-            # Vérifier la taille du fichier final
+            # Vérifier la taille
             file_size = os.path.getsize(output_path)
             if file_size > AudioProcessor.MAX_FILE_SIZE_BYTES:
-                # Si toujours trop gros, on peut re-compresser avec un bitrate plus faible
-                st.warning("Le fichier est volumineux. Une compression supplémentaire est appliquée.")
                 audio.export(output_path, format="mp3", bitrate="32k")
-
-            return output_path
+            
+            # Améliorer l'audio pour la voix (réduction bruit, isolation voix)
+            final_path = AudioProcessor.enhance_audio_for_speech(output_path, enhanced_path)
+            
+            return final_path
 
         except Exception as e:
-            raise Exception(f"Échec du traitement audio : {str(e)}. Format non supporté ou fichier corrompu.")
+            raise Exception(f"Échec du traitement audio : {str(e)}")
         finally:
-            # Nettoyer le fichier d'entrée temporaire
-            if os.path.exists(input_path):
-                os.unlink(input_path)
+            # Nettoyer les fichiers temporaires
+            for path in [input_path, output_path]:
+                if os.path.exists(path) and path != final_path:
+                    try:
+                        os.unlink(path)
+                    except:
+                        pass
