@@ -63,14 +63,6 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 10px 15px -3px rgba(20, 184, 166, 0.3);
     }
-    .bambara-badge {
-        background: linear-gradient(135deg, #fbbf24, #ef4444);
-        color: white;
-        padding: 2px 10px;
-        border-radius: 20px;
-        font-size: 0.8em;
-        margin-left: 10px;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -183,20 +175,15 @@ with st.expander("🌍 Options avancées", expanded=True):
                 "Choix du modèle",
                 [
                     "small - Open source (recommandé)",
-                    "best - Non-commercial (meilleure précision)",
                     "v1 - Commercial (licence Apache)"
                 ],
                 index=0
             )
             
             model_info = BambaraTranscriber.get_model_info()[
-                {"small": "small", "best": "best", "v1": "v1"}[
-                    bambara_model.split(" - ")[0]
-                ]
+                "small" if "small" in bambara_model else "v1"
             ]
             st.caption(f"**Précision:** {model_info['wer']} | **Licence:** {model_info['license']}")
-            if "best" in bambara_model:
-                st.warning("⚠️ Usage non-commercial uniquement")
         else:
             st.markdown("### 🤖 Modèle standard")
             st.caption("Whisper-large-v3 via Groq (multilingue)")
@@ -236,26 +223,33 @@ if launch_button and input_source:
         # ÉTAPE 2: Transcription selon la langue
         status.info("🧠 **Étape 2/3 : Transcription en cours...**")
         
-        if selected_lang == "bm":
-            # Transcription bambara
-            model_key = {
-                "small - Open source (recommandé)": "small",
-                "best - Non-commercial (meilleure précision)": "best",
-                "v1 - Commercial (licence Apache)": "v1"
-            }[bambara_model]
-            
-            transcriber = BambaraTranscriber(model_key)
-            transcription = transcriber.transcribe(audio_path)
-            
-        elif selected_lang == "mixed":
-            # Mode mixte
-            transcriber = MultiLangueTranscriber(GROQ_API_KEY, GEMINI_API_KEY if gemini_available else None)
-            transcription = transcriber.transcribe(audio_path, language_choice="mixed")
-            
-        else:
-            # Mode standard (Groq)
-            transcriber = GroqTranscriber(GROQ_API_KEY)
-            transcription = transcriber.transcribe(audio_path)
+        try:
+            if selected_lang == "bm":
+                # Transcription bambara
+                model_key = "small" if "small" in bambara_model else "v1"
+                
+                try:
+                    transcriber = BambaraTranscriber(model_key)
+                    transcription = transcriber.transcribe(audio_path)
+                except Exception as e:
+                    st.warning(f"Le modèle bambara spécialisé a échoué: {str(e)}")
+                    st.info("Utilisation du modèle standard Groq en secours...")
+                    transcriber = GroqTranscriber(GROQ_API_KEY)
+                    transcription = transcriber.transcribe(audio_path)
+                    
+            elif selected_lang == "mixed":
+                # Mode mixte
+                transcriber = MultiLangueTranscriber(GROQ_API_KEY, GEMINI_API_KEY if gemini_available else None)
+                transcription = transcriber.transcribe(audio_path, language_choice="mixed")
+                
+            else:
+                # Mode standard (Groq)
+                transcriber = GroqTranscriber(GROQ_API_KEY)
+                transcription = transcriber.transcribe(audio_path)
+                
+        except Exception as e:
+            st.error(f"Erreur de transcription: {str(e)}")
+            raise
 
         progress_bar.progress(80)
 
