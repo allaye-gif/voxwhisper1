@@ -1,8 +1,115 @@
 import streamlit as st
 import time
 import os
+import subprocess
+import sys
+import pkg_resources
 
-# Importer nos modules personnalisés
+# --- CONFIGURATION DE LA PAGE (DOIT ÊTRE LA PREMIÈRE COMMANDE STREAMLIT) ---
+st.set_page_config(
+    page_title="VoxWhisper Mali",
+    page_icon="🇲🇱",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- DÉBOGAGE DES DÉPENDANCES ---
+st.write("## 🔍 DÉBOGAGE - Vérification des installations")
+st.write("---")
+
+# Vérifier FFmpeg
+try:
+    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
+    if result.returncode == 0:
+        st.success("✅ FFmpeg est installé")
+        # Afficher la version
+        version_line = result.stdout.split('\n')[0]
+        st.code(version_line)
+    else:
+        st.error("❌ FFmpeg n'a pas pu être exécuté")
+except FileNotFoundError:
+    st.error("❌ FFmpeg n'est pas installé (commande non trouvée)")
+except Exception as e:
+    st.error(f"❌ Erreur FFmpeg: {str(e)}")
+
+st.write("---")
+
+# Vérifier les packages Python
+packages = [
+    "streamlit",
+    "groq", 
+    "yt-dlp",
+    "pydub",
+    "ffmpeg-python",
+    "validators",
+    "google-generativeai"
+]
+
+st.write("### 📦 Packages Python installés :")
+for package in packages:
+    try:
+        dist = pkg_resources.get_distribution(package)
+        st.success(f"✅ {package} {dist.version}")
+    except pkg_resources.DistributionNotFound:
+        st.error(f"❌ {package} NON INSTALLÉ")
+    except Exception as e:
+        st.error(f"❌ {package}: {str(e)}")
+
+st.write("---")
+st.write("### 🔧 Test d'import des modules :")
+
+# Test d'import de chaque module
+try:
+    import groq
+    st.success("✅ groq importé avec succès")
+    st.write(f"   - Path: {groq.__file__}")
+except Exception as e:
+    st.error(f"❌ groq: {str(e)}")
+
+try:
+    import yt_dlp
+    st.success("✅ yt_dlp importé avec succès")
+    st.write(f"   - Path: {yt_dlp.__file__}")
+except Exception as e:
+    st.error(f"❌ yt_dlp: {str(e)}")
+
+try:
+    from pydub import AudioSegment
+    st.success("✅ pydub.AudioSegment importé avec succès")
+    st.write(f"   - Path: {AudioSegment.__module__}")
+except Exception as e:
+    st.error(f"❌ pydub: {str(e)}")
+
+try:
+    import ffmpeg
+    st.success("✅ ffmpeg-python importé avec succès")
+    st.write(f"   - Path: {ffmpeg.__file__}")
+except Exception as e:
+    st.error(f"❌ ffmpeg-python: {str(e)}")
+
+try:
+    import validators
+    st.success("✅ validators importé avec succès")
+    st.write(f"   - Path: {validators.__file__}")
+except Exception as e:
+    st.error(f"❌ validators: {str(e)}")
+
+try:
+    import google.generativeai as genai
+    st.success("✅ google.generativeai importé avec succès")
+    st.write(f"   - Path: {genai.__file__}")
+except Exception as e:
+    st.error(f"❌ google.generativeai: {str(e)}")
+
+st.write("---")
+st.warning("⏸️ Arrêt temporaire pour débogage - Retirez ce code une fois les problèmes résolus")
+st.stop()  # Arrête l'exécution ici pour voir les résultats de débogage
+
+# ========== FIN DU DÉBOGAGE ==========
+# Le code ci-dessous ne sera pas exécuté tant que le débogage est actif
+# =====================================
+
+# Importer nos modules personnalisés (après débogage)
 from src.audio_processor import AudioProcessor
 from src.groq_client import GroqTranscriber
 from src.subscription import SubscriptionManager
@@ -12,13 +119,45 @@ from src.bambara_transcriber import BambaraTranscriber
 # --- MODE DÉVELOPPEMENT ---
 DEV_MODE = True
 
-# --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(
-    page_title="VoxWhisper Mali",
-    page_icon="🇲🇱",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# --- INITIALISATION ---
+
+# Vérification FFmpeg (déjà fait dans le débogage)
+if not AudioProcessor.check_ffmpeg():
+    st.error("""
+    ❌ **FFmpeg n'est pas installé sur le système.**  
+    VoxWhisper Mali nécessite FFmpeg pour traiter les fichiers audio.
+    """)
+    st.stop()
+
+# Clé API Groq
+try:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+except KeyError:
+    st.error("🔐 **Clé API Groq manquante.**")
+    st.stop()
+
+# Clé API Gemini
+try:
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+    gemini_available = True
+except KeyError:
+    gemini_available = False
+    st.sidebar.warning("⚠️ Clé Gemini manquante - formatage et bambara désactivés")
+
+# Initialisation
+SubscriptionManager.initialize_session()
+
+# Variables de session
+if 'history' not in st.session_state:
+    st.session_state.history = []
+if 'current_transcription' not in st.session_state:
+    st.session_state.current_transcription = None
+if 'current_lang' not in st.session_state:
+    st.session_state.current_lang = None
+if 'current_source' not in st.session_state:
+    st.session_state.current_source = None
+if 'formatted_text' not in st.session_state:
+    st.session_state.formatted_text = None
 
 # --- STYLE CSS MODERNE ---
 st.markdown("""
@@ -70,46 +209,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-# --- INITIALISATION ---
-
-# Vérification FFmpeg
-if not AudioProcessor.check_ffmpeg():
-    st.error("""
-    ❌ **FFmpeg n'est pas installé sur le système.**  
-    VoxWhisper Mali nécessite FFmpeg pour traiter les fichiers audio.
-    """)
-    st.stop()
-
-# Clé API Groq
-try:
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-except KeyError:
-    st.error("🔐 **Clé API Groq manquante.**")
-    st.stop()
-
-# Clé API Gemini
-try:
-    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-    gemini_available = True
-except KeyError:
-    gemini_available = False
-    st.sidebar.warning("⚠️ Clé Gemini manquante - formatage et bambara désactivés")
-
-# Initialisation
-SubscriptionManager.initialize_session()
-
-# Variables de session
-if 'history' not in st.session_state:
-    st.session_state.history = []
-if 'current_transcription' not in st.session_state:
-    st.session_state.current_transcription = None
-if 'current_lang' not in st.session_state:
-    st.session_state.current_lang = None
-if 'current_source' not in st.session_state:
-    st.session_state.current_source = None
-if 'formatted_text' not in st.session_state:
-    st.session_state.formatted_text = None
 
 # --- INTERFACE PRINCIPALE ---
 col_title, col_flag = st.columns([5, 1])
