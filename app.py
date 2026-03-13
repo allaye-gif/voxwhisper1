@@ -12,29 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- DÉBOGAGE SIMPLE SANS PKG_RESOURCES ---
-st.write("## 🔍 DÉBOGAGE - Vérification des installations")
-st.write("---")
 
-# Vérifier FFmpeg
-try:
-    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
-    if result.returncode == 0:
-        st.success("✅ FFmpeg est installé")
-        version_line = result.stdout.split('\n')[0]
-        st.code(version_line)
-    else:
-        st.error("❌ FFmpeg n'a pas pu être exécuté")
-except FileNotFoundError:
-    st.error("❌ FFmpeg n'est pas installé (commande non trouvée)")
-except Exception as e:
-    st.error(f"❌ Erreur FFmpeg: {str(e)}")
-
-st.write("---")
-st.warning("⏸️ Arrêt temporaire pour débogage - Retirez cette section une fois que FFmpeg fonctionne")
-st.stop()
-
-# ========== FIN DU DÉBOGAGE ==========
 
 # Importer nos modules personnalisés
 from src.audio_processor import AudioProcessor
@@ -434,3 +412,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
